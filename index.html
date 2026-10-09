@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Orb Catcher - Daily Fun Game</title>
+<style>
+  body { margin:0; background:#0a0a1a; color:#fff; font-family: 'Courier New', monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; overflow:hidden; }
+  canvas { border: 2px solid #00ffcc; border-radius:8px; box-shadow: 0 0 20px #00ffcc; background:#111122; }
+  #ui { margin-top:10px; text-align:center; }
+  button { background:#00ffcc; color:#000; border:none; padding:10px 20px; font-size:18px; cursor:pointer; border-radius:5px; margin:5px; font-weight:bold; }
+  button:hover { background:#00ccaa; }
+  h1 { color:#00ffcc; text-shadow:0 0 10px #00ffcc; margin:10px; }
+</style>
+</head>
+<body>
+<h1>🌌 Orb Catcher 🌌</h1>
+<canvas id="game" width="600" height="500"></canvas>
+<div id="ui">
+  <div>Score: <span id="score">0</span> | Lives: <span id="lives">3</span> | High: <span id="high">0</span></div>
+  <button id="startBtn">Start Game</button>
+  <button id="restartBtn" style="display:none">Restart</button>
+  <p id="msg">Catch green orbs! Avoid red bombs! Use mouse or arrows.</p>
+</div>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const highEl = document.getElementById('high');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const msgEl = document.getElementById('msg');
+
+let score = 0, lives = 3, high = localStorage.getItem('orbHigh') || 0;
+highEl.textContent = high;
+let gameRunning = false;
+let paddle = { x: 250, y: 460, w: 100, h: 15, speed: 8 };
+let orbs = [];
+let bombs = [];
+let particles = [];
+let spawnTimer = 0;
+let speed = 2;
+
+function spawn() {
+  if (Math.random() < 0.7) {
+    orbs.push({ x: Math.random()*560, y: -20, r: 12, vy: speed + Math.random() });
+  } else {
+    bombs.push({ x: Math.random()*560, y: -20, r: 14, vy: speed + Math.random()*0.5 });
+  }
+}
+
+function drawPaddle() {
+  ctx.fillStyle = '#00ffcc';
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = '#00ffcc';
+  ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+  ctx.shadowBlur = 0;
+}
+
+function drawOrbs() {
+  orbs.forEach(o => {
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.r, 0, Math.PI*2);
+    ctx.fillStyle = '#00ff88';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#00ff88';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+}
+
+function drawBombs() {
+  bombs.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fillStyle = '#ff3366';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#ff3366';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+}
+
+function update() {
+  if (!gameRunning) return;
+  spawnTimer++;
+  if (spawnTimer > 40) { spawn(); spawnTimer = 0; }
+  speed += 0.001;
+
+  orbs.forEach((o, i) => {
+    o.y += o.vy;
+    if (o.y > canvas.height) orbs.splice(i,1);
+    if (o.y + o.r > paddle.y && o.x > paddle.x && o.x < paddle.x + paddle.w) {
+      score += 10;
+      scoreEl.textContent = score;
+      if (score > high) { high = score; localStorage.setItem('orbHigh', high); highEl.textContent = high; }
+      orbs.splice(i,1);
+      // particles
+      for(let p=0;p<5;p++) particles.push({x:o.x, y:o.y, vx:(Math.random()-0.5)*4, vy:-Math.random()*3, life:30});
+    }
+  });
+
+  bombs.forEach((b, i) => {
+    b.y += b.vy;
+    if (b.y > canvas.height) bombs.splice(i,1);
+    if (b.y + b.r > paddle.y && b.x > paddle.x && b.x < paddle.x + paddle.w) {
+      lives--;
+      livesEl.textContent = lives;
+      bombs.splice(i,1);
+      if (lives <= 0) endGame();
+    }
+  });
+
+  particles.forEach((p,i) => {
+    p.x += p.vx; p.y += p.vy; p.life--;
+    if (p.life <=0) particles.splice(i,1);
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.fillStyle = `rgba(0,255,136,${p.life/30})`;
+    ctx.fillRect(p.x, p.y, 3, 3);
+  });
+}
+
+function loop() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  update();
+  drawPaddle();
+  drawOrbs();
+  drawBombs();
+  drawParticles();
+  requestAnimationFrame(loop);
+}
+
+function endGame() {
+  gameRunning = false;
+  msgEl.textContent = `Game Over! Score: ${score}. High: ${high}`;
+  restartBtn.style.display = 'inline-block';
+  startBtn.style.display = 'none';
+}
+
+function reset() {
+  score = 0; lives = 3; orbs = []; bombs = []; particles = []; speed = 2; spawnTimer=0;
+  scoreEl.textContent=0; livesEl.textContent=3;
+  paddle.x = 250;
+  msgEl.textContent = 'Catch green orbs! Avoid red bombs!';
+  restartBtn.style.display = 'none';
+  startBtn.style.display = 'inline-block';
+  gameRunning = false;
+}
+
+startBtn.onclick = () => { reset(); gameRunning = true; startBtn.style.display='none'; };
+restartBtn.onclick = () => { reset(); gameRunning = true; };
+
+let keys = {};
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  paddle.x = e.clientX - rect.left - paddle.w/2;
+  paddle.x = Math.max(0, Math.min(canvas.width - paddle.w, paddle.x));
+});
+
+setInterval(() => {
+  if (!gameRunning) return;
+  if (keys['ArrowLeft'] || keys['a']) paddle.x = Math.max(0, paddle.x - paddle.speed);
+  if (keys['ArrowRight'] || keys['d']) paddle.x = Math.min(canvas.width - paddle.w, paddle.x + paddle.speed);
+}, 16);
+
+loop();
+</script>
+</body>
+</html>
